@@ -3,7 +3,7 @@ use crate::errors::AppResult;
 
 #[derive(Debug)]
 struct PasswordPolicy {
-    value: String,
+    value: char,
     min_occurrences: usize,
     max_occurrences: usize,
 }
@@ -36,7 +36,9 @@ fn read_passwords(path: &str) -> AppResult<Vec<Password>> {
             let policy_value = parts
                 .get(1)
                 .expect("Line missing password policy value")
-                .replace(":", "");
+                .replace(":", "")
+                .parse::<char>()
+                .expect("Could not parse policy value as character");
 
             let value = parts.get(2).expect("Line missing password").to_owned();
 
@@ -54,7 +56,7 @@ fn read_passwords(path: &str) -> AppResult<Vec<Password>> {
 
 fn sled_rental_password_policy(passwords: &[Password]) -> AppResult<u32> {
     let invalid_password_count = passwords.iter().filter(|password| {
-        let policy_value_count = password.value.split("").fold(0, |acc, x| match x == password.policy.value {
+        let policy_value_count = password.value.chars().fold(0, |acc, x| match x == password.policy.value {
             true => acc + 1,
             false => acc,
         });
@@ -72,11 +74,13 @@ fn toboggan_corporate_password_policy(passwords: &[Password]) -> AppResult<u32> 
     let invalid_password_count = passwords.iter().filter(|password| {
         let Password { value, policy } = password;
         let first = value
-            .get((policy.min_occurrences - 1)..policy.min_occurrences)
+            .chars()
+            .nth(policy.min_occurrences - 1)
             .expect("Failed to parse password");
 
         let second = value
-            .get((policy.max_occurrences - 1)..policy.max_occurrences)
+            .chars()
+            .nth(policy.max_occurrences - 1)
             .expect("Failed to parse password");
 
         (first == policy.value) ^ (second == policy.value)
