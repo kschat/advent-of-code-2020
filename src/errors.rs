@@ -3,12 +3,14 @@ use std::num::ParseIntError;
 
 #[derive(Debug)]
 pub struct AppError {
-    message: String
+    message: String,
 }
 
 impl AppError {
     pub fn new(msg: &str) -> AppError {
-        AppError { message: msg.to_string() }
+        AppError {
+            message: msg.to_string(),
+        }
     }
 }
 
@@ -20,13 +22,17 @@ impl fmt::Display for AppError {
 
 impl From<ParseIntError> for AppError {
     fn from(err: ParseIntError) -> Self {
-        AppError { message: err.to_string() }
+        AppError {
+            message: err.to_string(),
+        }
     }
 }
 
 impl From<std::io::Error> for AppError {
     fn from(err: std::io::Error) -> Self {
-        AppError { message: err.to_string() }
+        AppError {
+            message: err.to_string(),
+        }
     }
 }
 

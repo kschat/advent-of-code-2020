@@ -1,11 +1,11 @@
-use std::env;
-use errors::AppResult;
 use day_one::run as run_day_one;
 use day_two::run as run_day_two;
+use errors::AppResult;
+use std::env;
 
-mod errors;
 mod day_one;
 mod day_two;
+mod errors;
 
 fn main() -> AppResult<()> {
     let action = env::args().nth(1).expect("Must provide an argument");
@@ -13,6 +13,6 @@ fn main() -> AppResult<()> {
     match action.trim() {
         "1" => run_day_one(),
         "2" => run_day_two(),
-        _ => panic!(format!("Unknown day {}", action))
+        _ => panic!(format!("Unknown day {}", action)),
     }
 }
