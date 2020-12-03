@@ -7,6 +7,7 @@ pub struct AppError {
 }
 
 impl AppError {
+    #[allow(dead_code)]
     pub fn new(msg: &str) -> AppError {
         AppError {
             message: msg.to_string(),
