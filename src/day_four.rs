@@ -108,7 +108,11 @@ pub fn run() -> AppResult<()> {
             let height = match passport_parts.get("hgt") {
                 Some(&id) => {
                     let captures = HEIGHT_REGEX.captures(id)?;
-                    let value = captures.get(1)?.as_str().parse::<u32>().expect("Malformed height");
+                    let value = captures
+                        .get(1)?
+                        .as_str()
+                        .parse::<u32>()
+                        .expect("Malformed height");
                     let unit = captures.get(2)?.as_str().to_string();
 
                     Height { value, unit }
