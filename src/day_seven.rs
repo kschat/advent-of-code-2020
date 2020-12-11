@@ -1,3 +1,5 @@
+use std::{str::CharIndices, iter::Peekable};
+
 use crate::errors::AppResult;
 
 const INPUT: &'static str = include_str!("../data/bag-rules.txt");
@@ -42,75 +44,125 @@ struct Bag {
   count: u32,
 }
 
-struct Tokenizer<'a> {
-  data: Vec<&'a str>,
-  location: usize,
+#[derive(Debug)]
+enum Token<'a> {
+  Identifer(&'a str),
+  Integer(u32),
+  Unknown(&'a str),
+  Comma,
+  Dot,
+  Eof,
 }
 
-impl<'a> Tokenizer<'a> {
-  pub fn new(data: Vec<&'a str>) -> Self {
+struct Lexer<'a> {
+  input: &'a str,
+  iter: Peekable<CharIndices<'a>>,
+  position: usize,
+  offset: usize,
+}
+
+impl<'a> Lexer<'a> {
+  pub fn new(input: &'a str) -> Self {
     Self {
-      data,
-      location: 0,
+      input,
+      iter: input.char_indices().peekable(),
+      position: 0,
+      offset: 0,
     }
   }
 
-  pub fn current(&self) -> Option<&'a str> {
-    self.data.get(self.location).map(|&value| value)
+  fn next_token(&mut self) -> Option<Token<'a>> {
+    match self.iter.next() {
+      Some((position, c)) if c.is_whitespace() => {
+        self.position = position;
+        self.offset = self.consume_while(char::is_whitespace);
+
+        self.next_token()
+      },
+      Some((position, c)) if c.is_alphabetic() => {
+        self.position = position;
+        self.offset = self.consume_while(char::is_alphabetic);
+
+        Some(Token::Identifer(&self.input[self.position..=self.offset]))
+      },
+      Some((position, c)) if c.is_numeric() => {
+        self.position = position;
+        self.offset = self.consume_while(char::is_numeric);
+        let value = self.input[self.position..=self.offset].parse::<i32>().expect("Unable to parse number as int");
+
+        Some(Token::Integer(value))
+      },
+      Some((position, ',')) => {
+        self.position = position;
+        self.offset = position;
+
+        Some(Token::Comma)
+      },
+      Some((position, '.')) => {
+        self.position = position;
+        self.offset = position;
+
+        Some(Token::Dot)
+      },
+      Some((index, _)) => Some(Token::Unknown(&self.input[index..])),
+      None => None,
+    }
   }
 
-  pub fn next(&mut self) -> Option<&'a str> {
-    self.peek_next().map(|value| {
-      self.location += 1;
-      value
-    })
-  }
+  fn consume_while<F>(&mut self, predicate: F) -> usize
+    where F: Fn(char) -> bool {
+      let mut offset = self.position;
 
-  pub fn peek_next(&mut self) -> Option<&'a str> {
-    self.data.get(self.location + 1).map(|&value| value)
-  }
-
-  pub fn take_while<F>(&mut self, predicate: F) -> Vec<&'a str>
-    where F: Fn(&'a str) -> bool {
-      let start_index = self.location;
-      let mut end_index = start_index + 1;
-
-      while let Some(next) = self.peek_next() {
-        println!("NEXT {}", next);
-        match predicate(next) {
-          true => end_index += 1,
+      while let Some((index, value)) = self.iter.peek() {
+        match predicate(*value) {
+          true => {
+            offset = *index;
+            self.iter.next();
+          },
           false => break,
         }
-
-        self.next();
       }
 
-      self.location = end_index;
-      self.data[start_index..end_index].to_vec()
-  }
-
-  pub fn skip(&mut self, count: usize) -> &mut Self {
-    let new_location = self.location + count;
-    if new_location >= self.data.len() - 1 {
-      self.location = new_location;
-    } else {
-      self.location = new_location;
-    }
-
-    self
+      offset
   }
 }
 
-fn parse_bag(tokenizer: &mut Tokenizer) -> Bag {
+impl<'a> Iterator for Lexer<'a> {
+  type Item = Token<'a>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    self.next_token()
+  }
+}
+
+fn parse_bag(lexer: &mut Lexer) -> Bag {
+  let name = lexer
+    .take_while(|token| match token {
+      Token::Identifer("bag") => false,
+      Token::Identifer(_) => true,
+      _ => false,
+    })
+    .skip(1)
+    .map(|token| match token {
+      Token::Identifer(val) => val,
+      _ => "",
+    })
+    .collect::<Vec<_>>()
+    .join(" ");
+
   Bag {
-    name: tokenizer.take_while(|token| token != "bags").join(" "),
+    name,
     count: 1,
   }
 }
 
-fn parse_bag_with_count(tokenizer: &mut Tokenizer) -> Bag {
-  let count = tokenizer.current().expect("Missing bag count").parse::<u32>().expect("Bag count is not a number");
-  let Bag { name, .. } = parse_bag(tokenizer);
+fn parse_bag_with_count(lexer: &mut Lexer) -> Bag {
+  let count = match lexer.next() {
+    Some(Token::Integer(val)) => val,
+    _ => panic!("Unexpected token"),
+  };
+
+  let Bag { name, .. } = parse_bag(lexer);
 
   Bag {
     name,
@@ -124,34 +176,35 @@ fn parse_bag_with_count(tokenizer: &mut Tokenizer) -> Bag {
 // bag_count = <NUMBER> <name>
 // <name> contain <bag_count>[, ...bag_count].
 fn parse_rules(input: &str) -> Tree<Bag> {
-  let a = input.split("\n").map(|line| {
-    println!("{}", line);
-    println!("{:?}", line.split(|c| c == ' ' || c == '.' || c == ',').collect::<Vec<_>>());
-    let tokenizer = &mut Tokenizer::new(line.split(|c| c == ' ' || c == '.' || c == ',').collect::<Vec<_>>());
+  let lexer = &mut Lexer::new(input);
 
-    let container_bag = parse_bag(tokenizer);
-    println!("{:?}", container_bag);
+  let container_bag = parse_bag(lexer);
+  println!("{:?}", container_bag);
 
-    let mut inner_bags = vec![parse_bag_with_count(tokenizer.skip(2))];
+  let mut inner_bags = vec![parse_bag_with_count(lexer)];
 
-    while let Some(token) = tokenizer.next() {
-      match token {
-        "" => inner_bags.push(parse_bag_with_count(tokenizer.skip(1))),
-        _ => panic!(format!("Unexpected token \"{}\"", token)),
-      }
+  while let Some(token) = lexer.next() {
+    match token {
+      "" => inner_bags.push(parse_bag_with_count(lexer.skip(1))),
+      _ => panic!(format!("Unexpected token \"{}\"", token)),
     }
+  }
 
-    println!("{:?}", container_bag);
-    println!("{:?}", inner_bags);
-  })
-  .collect::<Vec<_>>();
+  println!("{:?}", container_bag);
+  println!("{:?}", inner_bags);
 
   Tree::new()
 }
 
 pub fn run() -> AppResult<()> {
-  let inp = "bright indigo bags contain 4 shiny turquoise bags, 3 wavy yellow bags.\n";
-  parse_rules(inp);
+  let input = "bri京ght indigo bags contain 4 shiny turquoise bags, 3 wavy yellow bags.\n";
+  // let input = "b ";
+  println!("{}", input);
+  let mut lexer = Lexer::new(input);
+  while let Some(token) = lexer.next() {
+    println!("{:?}", token);
+  }
+  // parse_rules(inp);
   // parse_rules(INPUT);
 
   Ok(())
