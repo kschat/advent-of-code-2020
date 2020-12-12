@@ -1,4 +1,5 @@
-use std::{iter::Peekable, str::CharIndices};
+use std::{fmt::Debug, iter::Peekable, str::CharIndices};
+use uuid::Uuid;
 
 use crate::errors::AppResult;
 
@@ -8,6 +9,7 @@ const INPUT: &'static str = include_str!("../data/bag-rules.txt");
 struct Tree<T>
 where
     T: PartialEq,
+    T: Debug,
 {
     arena: Vec<Node<T>>,
 }
@@ -15,16 +17,78 @@ where
 impl<T> Tree<T>
 where
     T: PartialEq,
+    T: Debug,
 {
     pub fn new() -> Self {
         Self { arena: vec![] }
     }
 
-    pub fn find(&self, value: T) -> Option<usize> {
+    pub fn node(&mut self, value: T) -> usize {
+        match self.arena.iter().find(|node| node.value == value) {
+            Some(node) => node.id,
+            None => {
+                let id = self.arena.len();
+                self.arena.push(Node::new(id, value));
+                id
+            }
+        }
+    }
+
+    pub fn insert(&mut self, parent: T, children: Vec<T>) -> (usize, Vec<usize>) {
+        let parent_id = self.node(parent);
+        let children_ids = children
+            .into_iter()
+            .map(|child| {
+                let id = self.node(child);
+                match self.arena[id].parents.iter().find(|&&node| node == parent_id) {
+                    Some(_) => (),
+                    None => {
+                        self.arena[id].parents.push(parent_id);
+                        self.arena[parent_id].children.push(id);
+                    }
+                }
+
+                // match self.arena[id].parents {
+                //     Some(pid) => panic!(format!(
+                //         "Node \"{:?}\" already has parent \"{:?}\"",
+                //         self.arena[id].value, self.arena[pid].value
+                //     )),
+                //     None => {
+                //         self.arena[id].parent = Some(parent_id);
+                //         self.arena[parent_id].children.push(id);
+                //     }
+                // }
+
+                id
+            })
+            .collect::<Vec<_>>();
+
+        (parent_id, children_ids)
+    }
+
+    pub fn filter<F>(&self, predicate: F) -> Vec<usize>
+    where
+        F: Fn(&T) -> bool,
+    {
         self.arena
             .iter()
-            .find(|node| node.value == value)
-            .map(|node| node.id)
+            .filter_map(|x| match predicate(&x.value) {
+                true => Some(x.id),
+                false => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn node_depth(&self, id: usize) -> usize {
+        println!("DEPTH {:?}", self.arena[id]);
+        self.arena[id].parents.iter().fold(0, |acc, &parent| {
+            acc + 1 + self.node_depth(parent)
+        })
+
+        // match self.arena[id].parents {
+        //     Some(id) => 1 + self.node_depth(id),
+        //     None => 0,
+        // }
     }
 }
 
@@ -34,7 +98,8 @@ where
     T: PartialEq,
 {
     id: usize,
-    parent: Option<usize>,
+    // parent: Option<usize>,
+    parents: Vec<usize>,
     children: Vec<usize>,
     value: T,
 }
@@ -46,17 +111,12 @@ where
     pub fn new(id: usize, value: T) -> Self {
         Self {
             id,
-            parent: None,
+            // parent: None,
+            parents: vec![],
             children: vec![],
             value,
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-struct Bag {
-    name: String,
-    count: i32,
 }
 
 #[derive(Debug)]
@@ -68,6 +128,12 @@ enum Token<'a> {
     Dot,
 }
 
+// grammar
+//
+// name = <STRING> bags
+// bag_count = <NUMBER> <name>
+// empty_bag = no other bags
+// <name> contain <<bag_count>[, ...bag_count]|<empty_bag>>.
 struct Lexer<'a> {
     input: &'a str,
     iter: Peekable<CharIndices<'a>>,
@@ -153,10 +219,28 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-fn parse_bag(lexer: &mut Lexer) -> Bag {
+#[derive(Debug, PartialEq)]
+struct Bag {
+    id: String,
+    name: String,
+    count: i32,
+}
+
+impl Bag {
+    pub fn new(name: String, count: i32) -> Self {
+        Self {
+            id: "".to_string(),
+            // id: Uuid::new_v4().to_hyphenated().to_string(),
+            name,
+            count,
+        }
+    }
+}
+
+fn parse_bag(lexer: &mut Peekable<Lexer>) -> Bag {
     let name = lexer
         .take_while(|token| match token {
-            Token::Identifer("bags") => false,
+            Token::Identifer("bag") | Token::Identifer("bags") => false,
             Token::Identifer(_) => true,
             _ => false,
         })
@@ -167,51 +251,78 @@ fn parse_bag(lexer: &mut Lexer) -> Bag {
         .collect::<Vec<_>>()
         .join(" ");
 
-    Bag { name, count: 1 }
+    Bag::new(name, 1)
 }
 
-fn parse_bag_with_count(lexer: &mut Lexer) -> Bag {
+fn parse_bag_with_count(lexer: &mut Peekable<Lexer>) -> Bag {
     let count = match lexer.next() {
         Some(Token::Integer(val)) => val,
-        _ => panic!("Unexpected token"),
+        Some(token) => panic!(format!("Unexpected token \"{:?}\"", token)),
+        None => panic!("Unexpected end of input"),
     };
 
-    let Bag { name, .. } = parse_bag(lexer);
-
-    Bag { name, count }
+    Bag::new(parse_bag(lexer).name, 1)
 }
 
-// grammar
-//
-// name = <STRING> bags
-// bag_count = <NUMBER> <name>
-// <name> contain <bag_count>[, ...bag_count].
-fn parse_rules(input: &str) -> Tree<Bag> {
-    let lexer = &mut Lexer::new(input);
+fn parse_rules(lexer: &mut Peekable<Lexer>) -> Tree<Bag> {
+    let mut bags = Tree::new();
+    while let Some(token) = lexer.peek() {
+        match token {
+            Token::Identifer(_) => {
+                let (container, inner_bags) = parse_rule(lexer);
+                bags.insert(container, inner_bags.unwrap_or_else(|| vec![]));
+                // let (container, children) = parse_rule(lexer);
+                // for c in children.unwrap_or_else(|| vec![]) {
+                //     bags.insert(c, vec![container.clone()]);
+                // }
+            }
+            _ => panic!(format!("Unexpected token \"{:?}\"", token)),
+        }
+    }
 
+    bags
+}
+
+fn parse_rule(lexer: &mut Peekable<Lexer>) -> (Bag, Option<Vec<Bag>>) {
     let container_bag = parse_bag(lexer);
-    println!("{:?}", container_bag);
-    lexer.next();
 
-    let inner_bags = &mut vec![parse_bag_with_count(lexer)];
+    println!("{:?}", container_bag);
+
+    match lexer.next() {
+        Some(Token::Identifer("contain")) => (),
+        Some(token) => panic!(format!("Expected 'contain', found \"{:?}\"", token)),
+        None => panic!("Unexpected end of input"),
+    };
+
+    match lexer.peek() {
+        Some(Token::Identifer("no")) => {
+            lexer.skip(3).next();
+            return (container_bag, None);
+        }
+        _ => (),
+    };
+
+    let mut inner_bags = vec![parse_bag_with_count(lexer)];
     while let Some(token) = lexer.next() {
         match token {
             Token::Comma => inner_bags.push(parse_bag_with_count(lexer)),
-            Token::Dot => (),
+            Token::Dot => break,
             _ => panic!(format!("Unexpected token \"{:?}\"", token)),
         }
     }
 
     println!("{:?}", inner_bags);
 
-    Tree::new()
+    (container_bag, Some(inner_bags))
 }
 
 pub fn run() -> AppResult<()> {
-    let input = "bright indigo bags contain 4 shiny turquoise bags, 3 wavy yellow bags.\n";
-    println!("{}", input);
+    let mut lexer = Lexer::new(INPUT).peekable();
+    let bags = parse_rules(&mut lexer);
+    let targets = bags.filter(|bag| bag.name == "shiny gold");
+    println!("Target {:?}", targets);
 
-    parse_rules(input);
+    println!("Depth {}", targets.iter().fold(0, |acc, &target| acc + bags.node_depth(target)));
 
     Ok(())
 }
