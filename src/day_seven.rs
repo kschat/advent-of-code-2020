@@ -142,7 +142,10 @@ fn parse_bag_with_count(lexer: &mut Peekable<Lexer>) -> Bag {
         None => panic!("Unexpected end of input"),
     };
 
-    Bag { name: parse_bag(lexer).name, count }
+    Bag {
+        name: parse_bag(lexer).name,
+        count,
+    }
 }
 
 struct TableNode {
@@ -152,7 +155,10 @@ struct TableNode {
 
 impl TableNode {
     pub fn new() -> Self {
-        Self { parents: vec![], children: vec![] }
+        Self {
+            parents: vec![],
+            children: vec![],
+        }
     }
 }
 
@@ -217,10 +223,7 @@ fn parse_rule(lexer: &mut Peekable<Lexer>) -> (Bag, Option<Vec<Bag>>) {
     (container_bag, Some(inner_bags))
 }
 
-fn get_parents<'a>(
-    bag_name: &str,
-    lookup_table: &'a LookupTable,
-) -> HashSet<&'a str> {
+fn get_parents<'a>(bag_name: &str, lookup_table: &'a LookupTable) -> HashSet<&'a str> {
     let parents = match lookup_table.get(bag_name) {
         Some(value) => &value.parents,
         None => return HashSet::new(),
@@ -233,10 +236,7 @@ fn get_parents<'a>(
     })
 }
 
-fn get_required_bag_count(
-    bag_name: &str,
-    lookup_table: &LookupTable,
-) -> i32 {
+fn get_required_bag_count(bag_name: &str, lookup_table: &LookupTable) -> i32 {
     let children = match lookup_table.get(bag_name) {
         Some(value) => &value.children,
         None => return 0,
@@ -252,7 +252,10 @@ pub fn run() -> AppResult<()> {
     let hash = parse_rules(&mut lexer);
 
     println!("Part 1: \"{}\"", get_parents("shiny gold", &hash).len());
-    println!("Part 2: \"{}\"", get_required_bag_count("shiny gold", &hash));
+    println!(
+        "Part 2: \"{}\"",
+        get_required_bag_count("shiny gold", &hash)
+    );
 
     Ok(())
 }
