@@ -1,19 +1,29 @@
+use std::iter::repeat_with;
+
 use crate::errors::AppResult;
 
 const INPUT: &'static str = include_str!("../data/boot-code.txt");
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum IntCode {
     Accum(i32),
     Jump(i32),
-    Noop,
+    Noop(i32),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum RunState {
+    Running,
+    Cycle,
+    Terminated,
 }
 
 #[derive(Debug)]
 struct State {
     position: i32,
     accumulator: i32,
-    cycle_detected: bool,
+    run_state: RunState,
+    int_codes: Vec<IntCode>,
 }
 
 impl State {
@@ -21,18 +31,66 @@ impl State {
         Self {
             position: 0,
             accumulator: 0,
-            cycle_detected: false,
+            run_state: RunState::Running,
+            int_codes: vec![],
         }
     }
 }
 
+fn run_program(boot_code: &Vec<(i32, IntCode)>) -> State {
+    let mut boot_code = boot_code.clone();
+    let mut state = State::new();
+
+    while state.run_state == RunState::Running {
+        if state.position as usize >= boot_code.len() {
+            state.run_state = RunState::Terminated;
+            return state;
+        }
+
+        let (call_count, int_code) = boot_code
+            .get_mut(state.position as usize)
+            .expect("Position out of bounds");
+
+        if *call_count >= 1 {
+            state.run_state = RunState::Cycle;
+            return state;
+        }
+
+        match int_code {
+            IntCode::Accum(value) => {
+                state.accumulator += *value;
+                state.position += 1;
+                state.int_codes.push(IntCode::Accum(*value));
+            }
+            IntCode::Jump(value) => {
+                state.position += *value;
+                state.int_codes.push(IntCode::Jump(*value));
+            }
+            IntCode::Noop(value) => {
+                state.int_codes.push(IntCode::Noop(*value));
+                state.position += 1;
+            }
+        }
+
+        *call_count += 1;
+    }
+
+    state
+}
+
 pub fn run() -> AppResult<()> {
-    let mut boot_code = INPUT
+    let boot_code = INPUT
         .split("\n")
         .map(|line| {
             let instruction = line.split(" ").collect::<Vec<_>>();
             let int_code = match *instruction.get(0).expect("Missing int code") {
-                "nop" => IntCode::Noop,
+                "nop" => IntCode::Noop(
+                    instruction
+                        .get(1)
+                        .expect("Missing noop argument")
+                        .parse::<i32>()
+                        .expect("Failed to parse noop argument"),
+                ),
                 "acc" => IntCode::Accum(
                     instruction
                         .get(1)
@@ -54,44 +112,33 @@ pub fn run() -> AppResult<()> {
         })
         .collect::<Vec<_>>();
 
-    let mut state = State::new();
+    let state = run_program(&boot_code);
 
-    while !state.cycle_detected {
-        let (call_count, int_code) = boot_code
-            .get_mut(state.position as usize)
-            .expect("Position out of bounds");
+    println!("Part 1 {:?}", state.accumulator);
 
-        if *call_count >= 1 {
-            state.cycle_detected = true;
-            break;
-        }
+    let mut count = 0;
+    let result2 = repeat_with(|| boot_code.clone())
+        .find_map(|mut int_codes| {
+            int_codes[count] = match &int_codes[count] {
+                (c, IntCode::Noop(value)) => (*c, IntCode::Jump(*value)),
+                (c, IntCode::Jump(value)) => (*c, IntCode::Noop(*value)),
+                (c, IntCode::Accum(value)) => (*c, IntCode::Accum(*value)),
+            };
 
-        match int_code {
-            IntCode::Accum(value) => {
-                state.accumulator += *value;
-                state.position += 1;
-                println!(
-                    "acc {: <6} | {} {}",
-                    value, state.accumulator, state.position
-                );
+            count += 1;
+
+            match run_program(&int_codes) {
+                State {
+                    run_state: RunState::Terminated,
+                    accumulator,
+                    ..
+                } => Some(accumulator),
+                _ => None,
             }
-            IntCode::Jump(value) => {
-                state.position += *value;
-                println!(
-                    "jmp {: <6} | {} {}",
-                    value, state.accumulator, state.position
-                );
-            }
-            IntCode::Noop => {
-                state.position += 1;
-                println!("nop{: <7} | {} {}", "", state.accumulator, state.position);
-            }
-        }
+        })
+        .expect("Failed to find valid program");
 
-        *call_count += 1;
-    }
-
-    println!("Acc \"{}\"", state.accumulator);
+    println!("Part 2 {:?}", result2);
 
     Ok(())
 }
