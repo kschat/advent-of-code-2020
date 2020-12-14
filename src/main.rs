@@ -4,6 +4,7 @@ extern crate lazy_static;
 use day_eight::run as run_day_eight;
 use day_five::run as run_day_five;
 use day_four::run as run_day_four;
+use day_nine::run as run_day_nine;
 use day_one::run as run_day_one;
 use day_seven::run as run_day_seven;
 use day_six::run as run_day_six;
@@ -15,6 +16,7 @@ use std::env;
 mod day_eight;
 mod day_five;
 mod day_four;
+mod day_nine;
 mod day_one;
 mod day_seven;
 mod day_six;
@@ -34,6 +36,7 @@ fn main() -> AppResult<()> {
         "6" => run_day_six(),
         "7" => run_day_seven(),
         "8" => run_day_eight(),
+        "9" => run_day_nine(),
         _ => panic!(format!("Unknown day {}", action)),
     }
 }
