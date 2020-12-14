@@ -8,6 +8,7 @@ use day_nine::run as run_day_nine;
 use day_one::run as run_day_one;
 use day_seven::run as run_day_seven;
 use day_six::run as run_day_six;
+use day_ten::run as run_day_ten;
 use day_three::run as run_day_three;
 use day_two::run as run_day_two;
 use errors::AppResult;
@@ -20,6 +21,7 @@ mod day_nine;
 mod day_one;
 mod day_seven;
 mod day_six;
+mod day_ten;
 mod day_three;
 mod day_two;
 mod errors;
@@ -37,6 +39,7 @@ fn main() -> AppResult<()> {
         "7" => run_day_seven(),
         "8" => run_day_eight(),
         "9" => run_day_nine(),
+        "10" => run_day_ten(),
         _ => panic!(format!("Unknown day {}", action)),
     }
 }
