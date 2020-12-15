@@ -1,5 +1,6 @@
 use std::{
     collections::hash_map::DefaultHasher,
+    convert::TryInto,
     hash::{Hash, Hasher},
 };
 
@@ -7,58 +8,38 @@ use crate::errors::AppResult;
 
 const INPUT: &'static str = include_str!("../data/ferry-seats.txt");
 
+// 1 2 3
+// 4 X 6
+// 7 8 9
+const ADJACENT_OFFSETS: [(isize, isize); 8] = [
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+];
+
 fn compute_hash<T: Hash>(value: &T) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
 }
 
-// 1 2 3
-// 4 5 6
-// 7 8 9
-fn count_adjacent_occupied_seats(
-    cells: &[Vec<char>],
-    row_index: usize,
-    cell_index: usize,
-) -> usize {
-    let top_left = cells
-        .get(row_index - 1)
-        .and_then(|row| row.get(cell_index - 1));
-
-    let top_middle = cells.get(row_index - 1).and_then(|row| row.get(cell_index));
-
-    let top_right = cells
-        .get(row_index - 1)
-        .and_then(|row| row.get(cell_index + 1));
-
-    let center_left = cells.get(row_index).and_then(|row| row.get(cell_index - 1));
-
-    let center_right = cells.get(row_index).and_then(|row| row.get(cell_index + 1));
-
-    let bottom_left = cells
-        .get(row_index + 1)
-        .and_then(|row| row.get(cell_index - 1));
-
-    let bottom_middle = cells.get(row_index + 1).and_then(|row| row.get(cell_index));
-
-    let bottom_right = cells
-        .get(row_index + 1)
-        .and_then(|row| row.get(cell_index + 1));
-
-    [
-        top_left,
-        top_middle,
-        top_right,
-        center_left,
-        center_right,
-        bottom_left,
-        bottom_middle,
-        bottom_right,
-    ]
-    .iter()
-    .filter_map(|x| *x)
-    .filter(|&&x| x == '#')
-    .count()
+fn count_occupied(cells: &[Vec<char>], row_index: usize, cell_index: usize) -> usize {
+    ADJACENT_OFFSETS
+        .iter()
+        .map(|&(r, c)| (row_index as isize + r, cell_index as isize + c))
+        .map(|(r, c)| {
+            let row: usize = r.try_into().ok()?;
+            let col: usize = c.try_into().ok()?;
+            cells.get(row)?.get(col)
+        })
+        .filter_map(|x| x)
+        .filter(|&&x| x == '#')
+        .count()
 }
 
 fn calculate_updates(cells: &[Vec<char>]) -> Vec<(usize, usize, char)> {
@@ -66,52 +47,28 @@ fn calculate_updates(cells: &[Vec<char>]) -> Vec<(usize, usize, char)> {
         .iter()
         .enumerate()
         .fold(vec![], |acc, (row_index, row)| {
-            // skip padding
-            if row_index == 0 || row_index == cells.len() - 1 {
-                return acc;
-            }
-
             row.iter()
                 .enumerate()
-                .fold(acc, |mut acc, (cell_index, value)| {
-                    // skip padding and floor
-                    if *value == '.' || *value == '0' {
-                        return acc;
+                .fold(acc, |mut acc, (cell_index, value)| match value {
+                    'L' if count_occupied(&cells, row_index, cell_index) == 0 => {
+                        acc.push((row_index, cell_index, '#'));
+                        acc
                     }
-
-                    let adjacent_occupied_seats =
-                        count_adjacent_occupied_seats(&cells, row_index, cell_index);
-
-                    match value {
-                        'L' if adjacent_occupied_seats == 0 => {
-                            acc.push((row_index, cell_index, '#'));
-                            acc
-                        }
-                        '#' if adjacent_occupied_seats >= 4 => {
-                            acc.push((row_index, cell_index, 'L'));
-                            acc
-                        }
-                        _ => acc,
+                    '#' if count_occupied(&cells, row_index, cell_index) >= 4 => {
+                        acc.push((row_index, cell_index, 'L'));
+                        acc
                     }
+                    _ => acc,
                 })
         })
 }
 
-pub fn run() -> AppResult<()> {
-    let cells = INPUT
-        .split("\n")
-        .map(|line| [&['0'], &line.chars().collect::<Vec<_>>()[..], &['0']].concat())
-        .collect::<Vec<Vec<_>>>();
-
-    let padding = cells[0].iter().map(|_| '0').collect::<Vec<_>>();
-    let mut cells: Vec<Vec<char>> = [&[padding.clone()], &cells[..], &[padding.clone()]].concat();
-
+fn calculate_part1(cells: &mut [Vec<char>]) -> usize {
     let mut changed = true;
     while changed {
         let hash = compute_hash(&cells);
 
-        let updates = calculate_updates(&cells);
-        for (row_index, cell_index, value) in updates {
+        for (row_index, cell_index, value) in calculate_updates(&cells) {
             cells[row_index][cell_index] = value;
         }
 
@@ -122,7 +79,17 @@ pub fn run() -> AppResult<()> {
         acc + row.iter().filter(|cell| **cell == '#').count()
     });
 
-    println!("Part1: \"{}\"", occupied_seats);
+    occupied_seats
+}
+
+pub fn run() -> AppResult<()> {
+    let cells = INPUT
+        .split("\n")
+        .map(|line| line.chars().collect::<Vec<_>>())
+        .collect::<Vec<Vec<_>>>();
+
+    let part1 = calculate_part1(&mut cells.clone());
+    println!("Part1: \"{}\"", part1);
 
     Ok(())
 }
