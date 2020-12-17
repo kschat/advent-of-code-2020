@@ -11,6 +11,7 @@ use day_seven::run as run_day_seven;
 use day_six::run as run_day_six;
 use day_ten::run as run_day_ten;
 use day_three::run as run_day_three;
+use day_twelve::run as run_day_twelve;
 use day_two::run as run_day_two;
 use errors::AppResult;
 use std::env;
@@ -25,6 +26,7 @@ mod day_seven;
 mod day_six;
 mod day_ten;
 mod day_three;
+mod day_twelve;
 mod day_two;
 mod errors;
 
@@ -43,6 +45,7 @@ fn main() -> AppResult<()> {
         "9" => run_day_nine(),
         "10" => run_day_ten(),
         "11" => run_day_eleven(),
+        "12" => run_day_twelve(),
         _ => panic!(format!("Unknown day {}", action)),
     }
 }
