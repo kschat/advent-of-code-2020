@@ -1,51 +1,51 @@
 #[macro_use]
 extern crate lazy_static;
 
-use day_eight::run as run_day_eight;
-use day_eleven::run as run_day_eleven;
-use day_five::run as run_day_five;
-use day_four::run as run_day_four;
-use day_nine::run as run_day_nine;
-use day_one::run as run_day_one;
-use day_seven::run as run_day_seven;
-use day_six::run as run_day_six;
-use day_ten::run as run_day_ten;
-use day_three::run as run_day_three;
-use day_twelve::run as run_day_twelve;
-use day_two::run as run_day_two;
+use d01::run as run_d01;
+use d02::run as run_d02;
+use d03::run as run_d03;
+use d04::run as run_d04;
+use d05::run as run_d05;
+use d06::run as run_d06;
+use d07::run as run_d07;
+use d08::run as run_d08;
+use d09::run as run_d09;
+use d10::run as run_d10;
+use d11::run as run_d11;
+use d12::run as run_d12;
 use errors::AppResult;
 use std::env;
 
-mod day_eight;
-mod day_eleven;
-mod day_five;
-mod day_four;
-mod day_nine;
-mod day_one;
-mod day_seven;
-mod day_six;
-mod day_ten;
-mod day_three;
-mod day_twelve;
-mod day_two;
+mod d01;
+mod d02;
+mod d03;
+mod d04;
+mod d05;
+mod d06;
+mod d07;
+mod d08;
+mod d09;
+mod d10;
+mod d11;
+mod d12;
 mod errors;
 
 fn main() -> AppResult<()> {
     let action = env::args().nth(1).expect("Must provide an argument");
 
     match action.trim() {
-        "1" => run_day_one(),
-        "2" => run_day_two(),
-        "3" => run_day_three(),
-        "4" => run_day_four(),
-        "5" => run_day_five(),
-        "6" => run_day_six(),
-        "7" => run_day_seven(),
-        "8" => run_day_eight(),
-        "9" => run_day_nine(),
-        "10" => run_day_ten(),
-        "11" => run_day_eleven(),
-        "12" => run_day_twelve(),
+        "1" => run_d01(),
+        "2" => run_d02(),
+        "3" => run_d03(),
+        "4" => run_d04(),
+        "5" => run_d05(),
+        "6" => run_d06(),
+        "7" => run_d07(),
+        "8" => run_d08(),
+        "9" => run_d09(),
+        "10" => run_d10(),
+        "11" => run_d11(),
+        "12" => run_d12(),
         _ => panic!(format!("Unknown day {}", action)),
     }
 }
