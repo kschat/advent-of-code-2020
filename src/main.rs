@@ -13,6 +13,7 @@ use d09::run as run_d09;
 use d10::run as run_d10;
 use d11::run as run_d11;
 use d12::run as run_d12;
+use d13::run as run_d13;
 use errors::AppResult;
 use std::env;
 
@@ -28,6 +29,7 @@ mod d09;
 mod d10;
 mod d11;
 mod d12;
+mod d13;
 mod errors;
 
 fn main() -> AppResult<()> {
@@ -46,6 +48,7 @@ fn main() -> AppResult<()> {
         "10" => run_d10(),
         "11" => run_d11(),
         "12" => run_d12(),
+        "13" => run_d13(),
         _ => panic!(format!("Unknown day {}", action)),
     }
 }
